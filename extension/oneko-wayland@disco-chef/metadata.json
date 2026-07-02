@@ -1,0 +1,7 @@
+{
+  "uuid": "oneko-wayland@disco-chef",
+  "name": "Oneko Wayland",
+  "description": "The classic oneko desktop cats, reborn as a GNOME Shell extension so they work on Wayland. Cats sit on top of the focused window and chase the mouse pointer left and right without ever leaving the window's edges. Control them with the bundled oneko-wayland CLI.",
+  "shell-version": ["50"],
+  "url": "https://github.com/Disco-Chef/oneko-wayland"
+}

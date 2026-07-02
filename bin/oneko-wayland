@@ -1,0 +1,285 @@
+#!/usr/bin/env python3
+"""CLI for the Oneko Wayland GNOME Shell extension.
+
+Talks to the extension over D-Bus (org.oneko.Wayland). Cats persist across
+logins until you remove them.
+"""
+
+import argparse
+import json
+import os
+import sys
+
+import gi
+from gi.repository import Gio, GLib
+
+BUS_NAME = "org.oneko.Wayland"
+OBJECT_PATH = "/org/oneko/Wayland"
+UUID = "oneko-wayland@disco-chef"
+
+# CSS3 / X11 color names, so `--bg orange --fg brown` keeps working.
+COLORS = {
+    "aliceblue": "#f0f8ff", "antiquewhite": "#faebd7", "aqua": "#00ffff",
+    "aquamarine": "#7fffd4", "azure": "#f0ffff", "beige": "#f5f5dc",
+    "bisque": "#ffe4c4", "black": "#000000", "blanchedalmond": "#ffebcd",
+    "blue": "#0000ff", "blueviolet": "#8a2be2", "brown": "#a52a2a",
+    "burlywood": "#deb887", "cadetblue": "#5f9ea0", "chartreuse": "#7fff00",
+    "chocolate": "#d2691e", "coral": "#ff7f50", "cornflowerblue": "#6495ed",
+    "cornsilk": "#fff8dc", "crimson": "#dc143c", "cyan": "#00ffff",
+    "darkblue": "#00008b", "darkcyan": "#008b8b", "darkgoldenrod": "#b8860b",
+    "darkgray": "#a9a9a9", "darkgrey": "#a9a9a9", "darkgreen": "#006400",
+    "darkkhaki": "#bdb76b", "darkmagenta": "#8b008b", "darkolivegreen": "#556b2f",
+    "darkorange": "#ff8c00", "darkorchid": "#9932cc", "darkred": "#8b0000",
+    "darksalmon": "#e9967a", "darkseagreen": "#8fbc8f", "darkslateblue": "#483d8b",
+    "darkslategray": "#2f4f4f", "darkslategrey": "#2f4f4f", "darkturquoise": "#00ced1",
+    "darkviolet": "#9400d3", "deeppink": "#ff1493", "deepskyblue": "#00bfff",
+    "dimgray": "#696969", "dimgrey": "#696969", "dodgerblue": "#1e90ff",
+    "firebrick": "#b22222", "floralwhite": "#fffaf0", "forestgreen": "#228b22",
+    "fuchsia": "#ff00ff", "gainsboro": "#dcdcdc", "ghostwhite": "#f8f8ff",
+    "gold": "#ffd700", "goldenrod": "#daa520", "gray": "#808080",
+    "grey": "#808080", "green": "#008000", "greenyellow": "#adff2f",
+    "honeydew": "#f0fff0", "hotpink": "#ff69b4", "indianred": "#cd5c5c",
+    "indigo": "#4b0082", "ivory": "#fffff0", "khaki": "#f0e68c",
+    "lavender": "#e6e6fa", "lavenderblush": "#fff0f5", "lawngreen": "#7cfc00",
+    "lemonchiffon": "#fffacd", "lightblue": "#add8e6", "lightcoral": "#f08080",
+    "lightcyan": "#e0ffff", "lightgoldenrodyellow": "#fafad2", "lightgray": "#d3d3d3",
+    "lightgrey": "#d3d3d3", "lightgreen": "#90ee90", "lightpink": "#ffb6c1",
+    "lightsalmon": "#ffa07a", "lightseagreen": "#20b2aa", "lightskyblue": "#87cefa",
+    "lightslategray": "#778899", "lightslategrey": "#778899", "lightsteelblue": "#b0c4de",
+    "lightyellow": "#ffffe0", "lime": "#00ff00", "limegreen": "#32cd32",
+    "linen": "#faf0e6", "magenta": "#ff00ff", "maroon": "#800000",
+    "mediumaquamarine": "#66cdaa", "mediumblue": "#0000cd", "mediumorchid": "#ba55d3",
+    "mediumpurple": "#9370db", "mediumseagreen": "#3cb371", "mediumslateblue": "#7b68ee",
+    "mediumspringgreen": "#00fa9a", "mediumturquoise": "#48d1cc", "mediumvioletred": "#c71585",
+    "midnightblue": "#191970", "mintcream": "#f5fffa", "mistyrose": "#ffe4e1",
+    "moccasin": "#ffe4b5", "navajowhite": "#ffdead", "navy": "#000080",
+    "oldlace": "#fdf5e6", "olive": "#808000", "olivedrab": "#6b8e23",
+    "orange": "#ffa500", "orangered": "#ff4500", "orchid": "#da70d6",
+    "palegoldenrod": "#eee8aa", "palegreen": "#98fb98", "paleturquoise": "#afeeee",
+    "palevioletred": "#db7093", "papayawhip": "#ffefd5", "peachpuff": "#ffdab9",
+    "peru": "#cd853f", "pink": "#ffc0cb", "plum": "#dda0dd",
+    "powderblue": "#b0e0e6", "purple": "#800080", "rebeccapurple": "#663399",
+    "red": "#ff0000", "rosybrown": "#bc8f8f", "royalblue": "#4169e1",
+    "saddlebrown": "#8b4513", "salmon": "#fa8072", "sandybrown": "#f4a460",
+    "seagreen": "#2e8b57", "seashell": "#fff5ee", "sienna": "#a0522d",
+    "silver": "#c0c0c0", "skyblue": "#87ceeb", "slateblue": "#6a5acd",
+    "slategray": "#708090", "slategrey": "#708090", "snow": "#fffafa",
+    "springgreen": "#00ff7f", "steelblue": "#4682b4", "tan": "#d2b48c",
+    "teal": "#008080", "thistle": "#d8bfd8", "tomato": "#ff6347",
+    "turquoise": "#40e0d0", "violet": "#ee82ee", "wheat": "#f5deb3",
+    "white": "#ffffff", "whitesmoke": "#f5f5f5", "yellow": "#ffff00",
+    "yellowgreen": "#9acd32",
+}
+
+VARIANTS = ["neko", "tora", "dog", "sakura", "tomoyo"]
+
+
+def color(value):
+    v = value.strip().lower()
+    if v in COLORS:
+        return COLORS[v]
+    if len(v) == 7 and v.startswith("#"):
+        int(v[1:], 16)  # raises ValueError on junk
+        return v
+    raise argparse.ArgumentTypeError(
+        f"{value!r} is not a CSS color name or #rrggbb")
+
+
+def interval(value):
+    ms = float(value)
+    if ms >= 5000:  # old habits: oneko -time was in microseconds
+        ms /= 1000
+    return ms
+
+
+def fps(value):
+    rate = float(value)
+    if not 0 < rate <= 50:
+        raise argparse.ArgumentTypeError("fps must be between 1 and 50")
+    return 1000 / rate
+
+
+def sheet_path(value):
+    """A web-neko sprite sheet: an 8x4 grid of frames in one PNG, the layout
+    used by oneko.js and the skins on https://webneko.net/ and
+    https://bomvel.neocities.org/neko/ (fan art; credit the artist named on
+    the page where you found it)."""
+    import os
+    path = os.path.abspath(os.path.expanduser(value))
+    if not os.path.isfile(path):
+        raise argparse.ArgumentTypeError(f"no such file: {value}")
+    return path
+
+
+def call(method, *args, signature=""):
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    try:
+        return bus.call_sync(
+            BUS_NAME, OBJECT_PATH, BUS_NAME, method,
+            GLib.Variant(f"({signature})", args) if args else None,
+            None, Gio.DBusCallFlags.NONE, 2000, None)
+    except GLib.Error as e:
+        if "ServiceUnknown" in e.message or "NameHasNoOwner" in e.message:
+            sys.exit(diagnose())
+        sys.exit(f"oneko-wayland: D-Bus error: {e.message}")
+
+
+def diagnose():
+    """The extension isn't answering; figure out exactly why and say only
+    the one step that fixes it."""
+    import os
+
+    user_dir = os.path.join(
+        GLib.get_user_data_dir(), "gnome-shell", "extensions", UUID)
+    system_dir = os.path.join("/usr/share/gnome-shell/extensions", UUID)
+    installed = os.path.isdir(user_dir) or os.path.isdir(system_dir)
+
+    settings = Gio.Settings.new("org.gnome.shell")
+    enabled = UUID in settings.get_strv("enabled-extensions")
+    extensions_off = settings.get_boolean("disable-user-extensions")
+
+    why = "oneko-wayland: the cats' GNOME Shell extension is not running.\n"
+    if not installed:
+        return why + (
+            "It is not installed. From a clone of the oneko-wayland repo, run:\n"
+            "    ./install.sh")
+    if extensions_off:
+        return why + (
+            "It is installed, but GNOME's global 'user extensions' switch is\n"
+            "turned OFF, which silently disables it. Turn it back on with:\n"
+            "    gsettings set org.gnome.shell disable-user-extensions false\n"
+            "then log out and back in.")
+    if not enabled:
+        return why + (
+            "It is installed but not enabled. Enable it with:\n"
+            "    gnome-extensions enable " + UUID + "\n"
+            "then log out and back in.")
+    return why + (
+        "It is installed and enabled; GNOME just hasn't loaded it yet,\n"
+        "because a Wayland session only scans for new extensions at login.\n"
+        "Log out and back in once, then run your command again.\n"
+        "(One-time step: after that, your cats survive every login.)")
+
+
+def cmd_add(args):
+    config = {
+        "name": args.name,
+        "variant": args.variant,
+        "fg": args.fg,
+        "bg": args.bg,
+        "speed": args.speed,
+        "time": args.time,
+        "offset": args.offset,
+        "offsetY": args.offset_y,
+        "wake": args.wake,
+        "catch": args.catch,
+        "mode": args.mode,
+        "scale": args.scale,
+        "sheet": args.sheet,
+    }
+    (result,) = call("AddCat", json.dumps(config), signature="s")
+    result = json.loads(result)
+    if "error" in result:
+        sys.exit(f"oneko-wayland: {result['error']}")
+    c = result["cat"]
+    print(f"{c['name']} the {kind(c)} is on the prowl "
+          f"({c['mode']} mode, fg {c['fg']}, bg {c['bg']})")
+
+
+def kind(c):
+    if c.get("sheet"):
+        return os.path.splitext(os.path.basename(c["sheet"]))[0]
+    return c["variant"]
+
+
+def cmd_remove(args):
+    if args.all:
+        call("Clear")
+        print("all cats sent home")
+        return
+    if not args.name:
+        sys.exit("oneko-wayland: give a cat name or --all")
+    (removed,) = call("RemoveCat", args.name, signature="s")
+    if not removed:
+        sys.exit(f"oneko-wayland: no cat named {args.name!r}")
+    print(f"{args.name} sent home")
+
+
+def cmd_list(_args):
+    (cats,) = call("ListCats")
+    cats = json.loads(cats)
+    if not cats:
+        print("no cats around")
+        return
+    for c in cats:
+        print(f"{c['name']:12} {kind(c):7} mode={c['mode']:5} "
+              f"body={c['bg']} outline={c['fg']} speed={c['speed']} "
+              f"time={c['time']}ms offset={c['offset']:+},{c.get('offsetY', 0):+} "
+              f"scale={c['scale']}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="oneko-wayland",
+        description="Desktop cats for GNOME on Wayland, in the spirit of oneko.")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    add = sub.add_parser("add", help="spawn a cat (replaces one with the same name)")
+    add.add_argument("name", nargs="?", default="neko", help="the cat's name")
+    add.add_argument("-a", "--animal", "-v", "--variant", dest="variant",
+                     choices=VARIANTS, default="neko",
+                     help="which animal to spawn (default: neko; tora is the "
+                          "tiger-striped cat)")
+    add.add_argument("--body", "--bg", dest="bg", metavar="COLOR", type=color, default="#ffffff",
+                     help="body/fill color: CSS name or #rrggbb (default: white)")
+    add.add_argument("--outline", "--fg", dest="fg", metavar="COLOR", type=color, default="#000000",
+                     help="outline & details color: CSS name or #rrggbb "
+                          "(default: black)")
+    add.add_argument("-s", "--speed", type=float, default=13,
+                     help="pixels covered per animation step (default: 13)")
+    add.add_argument("--fps", dest="time", metavar="N", type=fps, default=argparse.SUPPRESS,
+                     help="animation steps per second (default: 8)")
+    add.add_argument("-t", "--time", dest="time", metavar="MS", type=interval, default=125,
+                     help="alternative to --fps: step interval in ms; values "
+                          ">= 5000 are read as oneko-style microseconds")
+    add.add_argument("-o", "--offset-x", "--offset", dest="offset", metavar="PX", type=int,
+                     default=0,
+                     help="shift the cat's spot horizontally: positive = right, "
+                          "negative = left, in px (default: 0)")
+    add.add_argument("--offset-y", dest="offset_y", metavar="PX", type=int, default=0,
+                     help="shift the cat's spot vertically: positive = down, "
+                          "negative = up, in px (default: 0)")
+    add.add_argument("--wake-distance", dest="wake", metavar="PX", type=float, default=6,
+                     help="how far away (px) the target must be before a "
+                          "resting cat gets up (default: 6; try 64 for a "
+                          "lazier cat)")
+    add.add_argument("--catch-distance", dest="catch", metavar="PX", type=float, default=6,
+                     help="how close (px) the cat must get to consider the "
+                          "target caught and sit down (default: 6)")
+    add.add_argument("--sheet", type=sheet_path, metavar="PNG", default=None,
+                     help="use a custom web-neko sprite sheet (8x4 grid PNG, "
+                          "as found on webneko.net or the Neko Archive at "
+                          "bomvel.neocities.org/neko) instead of a built-in "
+                          "animal; --body/--outline then only color the name "
+                          "tag")
+    add.add_argument("-m", "--mode", choices=["focus", "mouse"], default="focus",
+                     help="focus: ride the focused window's top edge (like "
+                          "-tofocus); mouse: free pointer chasing (default: focus)")
+    add.add_argument("--scale", type=float, default=1,
+                     help="sprite scale factor (default: 1; try 2 on big screens)")
+    add.set_defaults(func=cmd_add)
+
+    remove = sub.add_parser("remove", help="remove a cat by name")
+    remove.add_argument("name", nargs="?", help="the cat's name")
+    remove.add_argument("--all", action="store_true", help="remove every cat")
+    remove.set_defaults(func=cmd_remove)
+
+    lst = sub.add_parser("list", help="list the cats currently out")
+    lst.set_defaults(func=cmd_list)
+
+    args = parser.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
