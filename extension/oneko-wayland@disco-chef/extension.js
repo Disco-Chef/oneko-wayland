@@ -202,7 +202,9 @@ export default class OnekoWaylandExtension extends Extension {
     }
 
     _saveState() {
-        const data = JSON.stringify([...this._cats.values()].map(c => c.config));
+        // Indented so the state file is inspectable when debugging a cat
+        // that fails to restore at login.
+        const data = JSON.stringify([...this._cats.values()].map(c => c.config), null, 2);
         try {
             GLib.file_set_contents(this._stateFile, data);
         } catch (e) {
