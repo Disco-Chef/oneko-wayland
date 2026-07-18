@@ -262,9 +262,11 @@ def main():
                           "bomvel.neocities.org/neko) instead of a built-in "
                           "animal; --body/--outline then only color the name "
                           "tag")
-    add.add_argument("-m", "--mode", choices=["focus", "mouse"], default="focus",
+    add.add_argument("-m", "--mode", choices=["focus", "mouse", "catwalk"], default="focus",
                      help="focus: ride the focused window's top edge (like "
-                          "-tofocus); mouse: free pointer chasing (default: focus)")
+                          "-tofocus); mouse: free pointer chasing; catwalk: "
+                          "stroll the focused window's top edge and nap on "
+                          "your own schedule (default: focus)")
     add.add_argument("--scale", type=float, default=1,
                      help="sprite scale factor (default: 1; try 2 on big screens)")
     add.set_defaults(func=cmd_add)

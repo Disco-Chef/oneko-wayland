@@ -119,8 +119,8 @@ export default class OnekoWaylandExtension extends Extension {
             if (!/^#[0-9a-fA-F]{6}$/.test(config[key]))
                 throw new Error(`${key} must be #rrggbb, got "${config[key]}"`);
         }
-        if (!['focus', 'mouse'].includes(config.mode))
-            throw new Error('mode must be "focus" or "mouse"');
+        if (!['focus', 'mouse', 'catwalk'].includes(config.mode))
+            throw new Error('mode must be "focus", "mouse" or "catwalk"');
         config.speed = Math.max(1, Number(config.speed) || DEFAULTS.speed);
         config.time = Math.max(20, Number(config.time) || DEFAULTS.time);
         config.offset = Number(config.offset) || 0;
