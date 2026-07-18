@@ -90,12 +90,12 @@ if gdbus call --session --dest org.oneko.Wayland \
         --method org.oneko.Wayland.ListCats >/dev/null 2>&1; then
     echo "Done. A version of the extension is already running, so you can add"
     echo "a cat right now:"
-    echo "  oneko-wayland add Pickles --body orange --outline brown"
+    echo "  oneko-wayland add Pickles --body white --outline red"
     echo
     echo "But if you just UPDATED oneko-wayland, log out and back in first: a"
     echo "Wayland session keeps running the old code until you do."
 else
     echo "Done. Log out and back in once (a running Wayland session cannot load"
     echo "a brand-new extension in place), then add a cat:"
-    echo "  oneko-wayland add Pickles --body orange --outline brown"
+    echo "  oneko-wayland add Pickles --body white --outline red"
 fi

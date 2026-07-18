@@ -25,6 +25,14 @@ sits at the corner and claws at the border (the original *togi* animation).
 The full state machine is ported (wash, scratch, yawn, sleep) with the
 original timing constants from `oneko.h`.
 
+There is also a third, more contemplative mode: `catwalk`. Those cats keep to
+the focused window's top edge but ignore your pointer; they stroll to spots of
+their own choosing, groom, and take long naps pinned to the window they fell
+asleep on. A cat that wanders into a sleeping colleague wakes it, and the
+woken cat picks one of four reactions, one of which is a chase. Poking a
+sleeper with the pointer counts as a waking, and yes, it may chase the pointer
+for it.
+
 ## Compatibility
 
 This is a **GNOME Shell extension**, so it works on any distro whose desktop
@@ -57,7 +65,7 @@ Check it's alive:
 
 ```sh
 gnome-extensions info oneko-wayland@disco-chef
-oneko-wayland add Pickles --body orange --outline brown
+oneko-wayland add Pickles --body white --outline red
 ```
 
 The installer also fixes the most common silent failure. GNOME has a master
@@ -86,7 +94,7 @@ oneko-wayland list
 | `--offset-y` | shift the cat's spot down(+)/up(−), in px | `0` |
 | `--wake-distance` | how far (px) the target must be before a resting cat gets up (try `64` for a lazy cat) | `6` |
 | `--catch-distance` | how close (px) counts as having caught the target | `6` |
-| `-m, --mode` | `focus` = ride the focused window (old `-tofocus`), `mouse` = free pointer chasing | `focus` |
+| `-m, --mode` | `focus` = ride the focused window (old `-tofocus`), `mouse` = free pointer chasing, `catwalk` = stroll the focused window and nap on its own schedule | `focus` |
 | `--scale` | sprite scale factor (try `2` on big screens) | `1` |
 
 Old-timer aliases keep working: `--variant`, `--fg`, `--bg`, `--offset`, and
@@ -111,9 +119,9 @@ what makes `--body`/`--outline` recoloring possible: one sprite set, any
 color cat:
 
 ```sh
-oneko-wayland add Pickles --body orange --outline brown   # orange cat
-oneko-wayland add Rex --animal dog --body '#c0f0ff'       # pastel blue dog
-oneko-wayland add Stripes --animal tora --scale 2         # big tiger
+oneko-wayland add Pickles --body white --outline red     # white cat, red trim
+oneko-wayland add Rex --animal dog --body white --outline red   # matching dog
+oneko-wayland add Stripes --animal tora --scale 2        # big tiger
 ```
 
 ### Custom sprite sheets (`--sheet`)
@@ -175,6 +183,10 @@ alias catswindow='oneko-wayland add MrPickles --body orange --outline brown --sp
 alias catsmouse='oneko-wayland add MrPickles --body orange --outline brown --speed 14 --offset-x=35  --time 100000 --mode mouse &&
                  oneko-wayland add Adonis    --body grey   --outline black --speed 16 --offset-x=-35 --time 100500 --mode mouse &&
                  oneko-wayland add Sultana   --body white  --outline red   --speed 15 --offset-x=0   --time 100250 --mode mouse'
+
+alias catswalk='oneko-wayland add MrPickles --body orange --outline brown --speed 14 --offset-x=35  --time 100000 --mode catwalk &&
+                oneko-wayland add Adonis    --body grey   --outline black --speed 16 --offset-x=-35 --time 100500 --mode catwalk &&
+                oneko-wayland add Sultana   --body white  --outline red   --speed 15 --offset-x=0   --time 100250 --mode catwalk'
 
 alias catsgohome='oneko-wayland remove --all'
 ```
