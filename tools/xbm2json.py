@@ -69,11 +69,25 @@ def load_variant(variant):
     return frames
 
 
+def dump(sprites):
+    """Readable but compact: one line per frame, so the file diffs and greps
+    well without ballooning (full pretty-printing would put every row int on
+    its own line)."""
+    variants = []
+    for variant, frames in sprites.items():
+        lines = [
+            f"    {json.dumps(name)}: {json.dumps(frame, separators=(',', ':'))}"
+            for name, frame in frames.items()
+        ]
+        variants.append(f"  {json.dumps(variant)}: {{\n" + ",\n".join(lines) + "\n  }")
+    return "{\n" + ",\n".join(variants) + "\n}\n"
+
+
 def main():
     variants = sorted(p.name for p in (ASSETS / "bitmaps").iterdir() if p.is_dir())
     sprites = {v: load_variant(v) for v in variants}
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(sprites, separators=(",", ":")))
+    OUT.write_text(dump(sprites))
     for v in variants:
         print(f"{v}: {len(sprites[v])} frames")
     print(f"wrote {OUT} ({OUT.stat().st_size} bytes)")

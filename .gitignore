@@ -1,3 +1,4 @@
 extension/*/sprites.json
+external_sprites/
 dist/
 __pycache__/
