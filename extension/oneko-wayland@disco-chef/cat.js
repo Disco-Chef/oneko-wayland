@@ -194,6 +194,14 @@ export class Cat {
         return [0, Math.max(0, global.stage.width - this._size)];
     }
 
+    _awayFrom(ox) {
+        const [lo, hi] = this._wanderRange();
+        const mid = (lo + hi) / 2;
+        return ox >= mid
+            ? lo + Math.random() * (mid - lo)
+            : mid + Math.random() * (hi - mid);
+    }
+
     _unpin() {
         if (this._pinned) {
             this._pinned.win.disconnect(this._pinned.id);
@@ -225,6 +233,38 @@ export class Cat {
         this._wanderX = null;
         this._afterAwake = null;
         this._setState(State.AWAKE);
+    }
+
+    // Someone (a strolling sibling, or the pointer) got too close to a
+    // sleeper. The sleeper decides how to take it: four reactions, equal
+    // odds. POKE_SNOOZE keeps a doze-off from becoming a wake-up loop while
+    // the offender is still standing there.
+    poke(offender, offenderX) {
+        if (this._mode !== 'catwalk' || this._state !== State.SLEEP ||
+            this._pokeCooldown > 0)
+            return;
+        switch (Math.floor(Math.random() * 4)) {
+        case 0:  // startle, groom the indignity away, carry on
+            this._wakeUp();
+            this._afterAwake = 'groom';
+            break;
+        case 1:  // get up and walk off, pointedly, the other way
+            this._wakeUp();
+            this._afterAwake = 'move';
+            this._wanderX = this._awayFrom(offenderX);
+            break;
+        case 2:  // look around, decide it wasn't worth it, doze off again
+            this._pokeCooldown = this._drawTicks(POKE_SNOOZE, POKE_SNOOZE);
+            this._afterAwake = 'sleep';
+            this._setState(State.AWAKE);
+            break;
+        case 3:  // oh, it is ON
+            this._wakeUp();
+            this._afterAwake = 'chase';
+            this._chaseTarget = offender;
+            this._chaseTicks = this._drawTicks(CHASE_TIME, CHASE_TIME);
+            break;
+        }
     }
 
     // A pause just ended: nap if due (or unlucky), groom, or stroll on.
@@ -430,6 +470,11 @@ export class Cat {
                 this._wakeUp();
                 break;
             }
+            if (target.px >= this._x && target.px < this._x + this._size &&
+                target.py >= this._y && target.py < this._y + this._size) {
+                this.poke('pointer', target.px);
+                break;
+            }
             if (this._napTicks <= 0) {
                 this._wakeUp();
                 break;
@@ -468,9 +513,15 @@ export class Cat {
                     break;
                 }
             }
-            if (distance > this._catch)
+            if (distance > this._catch) {
                 this._stepTowards(dx, dy, distance);
-            else if (this._state === State.MOVE) {
+                for (const cat of this._siblings()) {
+                    if (cat !== this && cat._state === State.SLEEP &&
+                        Math.hypot(cat._x - this._x, cat._y - this._y) <
+                            WAKE_RADIUS * this._size)
+                        cat.poke(this, this._x);
+                }
+            } else if (this._state === State.MOVE) {
                 this._wanderX = null;
                 this._pauseTicks = this._drawTicks(PAUSE_MIN, PAUSE_MAX);
                 this._setState(State.STOP);
