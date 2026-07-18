@@ -232,6 +232,7 @@ export class Cat {
         this._energy = this._drawTicks(WANDER_ENERGY_MIN, WANDER_ENERGY_MAX);
         this._wanderX = null;
         this._afterAwake = null;
+        this._chaseTarget = null;
         this._setState(State.AWAKE);
     }
 
@@ -509,6 +510,7 @@ export class Cat {
                 this._chaseTicks--;
                 if (this._chaseTicks <= 0) {
                     this._pauseTicks = this._drawTicks(PAUSE_MIN, PAUSE_MAX);
+                    this._chaseTarget = null;
                     this._setState(State.STOP);
                     break;
                 }
