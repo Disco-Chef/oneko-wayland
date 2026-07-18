@@ -32,8 +32,9 @@ function hexToRgb(hex) {
 }
 
 export class Cat {
-    constructor(config, frames, parent) {
+    constructor(config, frames, parent, siblings = () => []) {
         this.config = config;
+        this._siblings = siblings;
         this._mode = config.mode;
         this._speed = config.speed;
         this._offset = config.offset;
@@ -92,8 +93,9 @@ export class Cat {
         this._label.hide();
         parent.add_child(this._label);
 
+        this._tickMs = Math.max(20, Math.round(config.time));
         this._timer = GLib.timeout_add(
-            GLib.PRIORITY_DEFAULT, Math.max(20, Math.round(config.time)), () => {
+            GLib.PRIORITY_DEFAULT, this._tickMs, () => {
                 if (this._destroyed)
                     return GLib.SOURCE_REMOVE;
                 this._tick();
@@ -137,6 +139,16 @@ export class Cat {
         cr.$dispose();
     }
 
+    // The focused window, if it's one a cat can perch on.
+    _focusWindow() {
+        const win = global.display.focus_window;
+        if (win && !win.minimized &&
+            win.get_window_type() !== Meta.WindowType.DESKTOP &&
+            win.get_window_type() !== Meta.WindowType.DOCK)
+            return win;
+        return null;
+    }
+
     // Where the cat wants to be, and whether the pointer is beyond a window
     // border ('left'/'right') so it should claw at it once it gets there.
     _target() {
@@ -145,10 +157,8 @@ export class Cat {
         const mx = px + this._offset;
 
         if (this._mode === 'focus') {
-            const win = global.display.focus_window;
-            if (win && !win.minimized &&
-                win.get_window_type() !== Meta.WindowType.DESKTOP &&
-                win.get_window_type() !== Meta.WindowType.DOCK) {
+            const win = this._focusWindow();
+            if (win) {
                 // oneko -tofocus: sit on the top border; x chases the pointer
                 // but never crosses the window's left/right corners.
                 const r = win.get_frame_rect();
@@ -179,12 +189,21 @@ export class Cat {
         this._stateCount = 0;
     }
 
-    _tick() {
-        this._tickCount = (this._tickCount + 1) % 9999;
-        if (this._tickCount % 2 === 0)
-            this._stateCount++;
+    _stepTowards(dx, dy, distance) {
+        let moveX = dx, moveY = dy;
+        if (distance > this._speed) {
+            moveX = this._speed * dx / distance;
+            moveY = this._speed * dy / distance;
+        }
+        this._x += moveX;
+        this._y += moveY;
+        const octant = Math.round(Math.atan2(-moveY, moveX) * 4 / Math.PI);
+        this._dir = DIR_FRAMES[(octant + 8) % 8];
+        this._actor.set_position(Math.round(this._x), Math.round(this._y));
+    }
 
-        const target = this._target();
+    // The original oneko brain: chase the target, rest when it's caught.
+    _tickChase(target) {
         const dx = target.x - this._x;
         const dy = target.y - this._y;
         const distance = Math.hypot(dx, dy);
@@ -240,19 +259,19 @@ export class Cat {
                 this._setState(State.STOP);
                 break;
             }
-            let moveX = dx, moveY = dy;
-            if (distance > this._speed) {
-                moveX = this._speed * dx / distance;
-                moveY = this._speed * dy / distance;
-            }
-            this._x += moveX;
-            this._y += moveY;
-            const octant = Math.round(Math.atan2(-moveY, moveX) * 4 / Math.PI);
-            this._dir = DIR_FRAMES[(octant + 8) % 8];
-            this._actor.set_position(Math.round(this._x), Math.round(this._y));
+            this._stepTowards(dx, dy, distance);
             break;
         }
         }
+    }
+
+    _tick() {
+        this._tickCount = (this._tickCount + 1) % 9999;
+        if (this._tickCount % 2 === 0)
+            this._stateCount++;
+
+        const target = this._target();
+        this._tickChase(target);
 
         const frame = this._currentFrame();
         if (frame !== this._frame) {

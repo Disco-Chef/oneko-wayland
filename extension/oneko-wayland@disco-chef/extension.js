@@ -160,7 +160,8 @@ export default class OnekoWaylandExtension extends Extension {
             ? loadSheet(config.sheet)
             : this._sprites[config.variant];
         this._cats.get(config.name)?.destroy();
-        this._cats.set(config.name, new Cat(config, frames, this._group));
+        this._cats.set(config.name,
+            new Cat(config, frames, this._group, () => [...this._cats.values()]));
     }
 
     AddCat(configJson) {
