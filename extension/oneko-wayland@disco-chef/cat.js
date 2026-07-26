@@ -12,7 +12,7 @@ const AKUBI_TIME = 6;
 const AWAKE_TIME = 3;
 const TOGI_TIME = 10;
 
-// Catwalk mode personality. Wall-clock seconds (converted per cat by
+// Prowl mode personality. Wall-clock seconds (converted per cat by
 // _drawTicks), so --time changes animation smoothness, not the schedule.
 const WANDER_ENERGY_MIN = 20;   // waking allowance between naps
 const WANDER_ENERGY_MAX = 40;
@@ -80,7 +80,7 @@ export class Cat {
         this._togiDir = 'ltogi';
         this._frame = 'mati2';
 
-        // Catwalk-mode state (inert in the other modes).
+        // Prowl-mode state (inert in the other modes).
         this._energy = 0;
         this._napTicks = 0;
         this._napPlanned = false;
@@ -121,7 +121,7 @@ export class Cat {
         parent.add_child(this._label);
 
         this._tickMs = Math.max(20, Math.round(config.time));
-        if (this._mode === 'catwalk')
+        if (this._mode === 'prowl')
             this._energy = this._drawTicks(WANDER_ENERGY_MIN, WANDER_ENERGY_MAX);
         this._timer = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT, this._tickMs, () => {
@@ -183,7 +183,7 @@ export class Cat {
         return Math.round((minS + Math.random() * (maxS - minS)) * 1000 / this._tickMs);
     }
 
-    // Where a catwalk cat may roam: the focused window's top edge, or the
+    // Where a prowl cat may roam: the focused window's top edge, or the
     // bottom of the screen (the floor) when there's nothing to perch on.
     _wanderRange() {
         const win = this._focusWindow();
@@ -241,7 +241,7 @@ export class Cat {
     // odds. POKE_SNOOZE keeps a doze-off from becoming a wake-up loop while
     // the offender is still standing there.
     poke(offender, offenderX) {
-        if (this._mode !== 'catwalk' || this._state !== State.SLEEP ||
+        if (this._mode !== 'prowl' || this._state !== State.SLEEP ||
             this._pokeCooldown > 0)
             return;
         switch (Math.floor(Math.random() * 4)) {
@@ -285,8 +285,8 @@ export class Cat {
     // Where the cat wants to be, and whether the pointer is beyond a window
     // border ('left'/'right') so it should claw at it once it gets there.
     _target() {
-        if (this._mode === 'catwalk')
-            return this._catwalkTarget();
+        if (this._mode === 'prowl')
+            return this._prowlTarget();
         const [px, py] = global.get_pointer();
         const size = this._size;
         const mx = px + this._offset;
@@ -319,9 +319,9 @@ export class Cat {
         return {x: tx, y: ty, edge: null, px, py};
     }
 
-    // Catwalk cats ignore the pointer: the target is wherever the cat has
+    // Prowl cats ignore the pointer: the target is wherever the cat has
     // decided to go. px/py still flow through for the hover label.
-    _catwalkTarget() {
+    _prowlTarget() {
         const [px, py] = global.get_pointer();
         const size = this._size;
 
@@ -430,9 +430,9 @@ export class Cat {
         }
     }
 
-    // The catwalk brain: self-directed strolls, long naps, strong opinions
+    // The prowl brain: self-directed strolls, long naps, strong opinions
     // about being woken. The pointer is scenery (mostly; see poke()).
-    _tickCatwalk(target) {
+    _tickProwl(target) {
         if (this._state !== State.SLEEP && this._energy > 0)
             this._energy--;
         if (this._pokeCooldown > 0)
@@ -538,8 +538,8 @@ export class Cat {
             this._stateCount++;
 
         const target = this._target();
-        if (this._mode === 'catwalk')
-            this._tickCatwalk(target);
+        if (this._mode === 'prowl')
+            this._tickProwl(target);
         else
             this._tickChase(target);
 
