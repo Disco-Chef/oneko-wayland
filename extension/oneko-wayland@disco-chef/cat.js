@@ -23,6 +23,7 @@ const PAUSE_MAX = 4;
 const EARLY_NAP_CHANCE = 0.15;  // per-pause chance to nap ahead of schedule
 const GROOM_CHANCE = 0.3;       // per-pause chance to groom instead of stroll
 const POKE_SNOOZE = 3;          // ignore pokes this long after dozing back off
+const DOZE_BACK_CHANCE = 0.35; // after a sulk or walk-off, odds of dozing back off
 const CHASE_TIME = 5;           // how long a chase reaction lasts
 const WAKE_RADIUS = 1.5;        // sprite widths; any closer is rude
 
@@ -91,6 +92,9 @@ export class Cat {
         this._chaseTicks = 0;
         this._wanderX = null;
         this._pinned = null;
+        this._moving = false;        // are we actually closing distance this tick
+        this._dozeBackAfter = false; // poke reaction should end by dozing off again
+        this._napStash = 0;          // nap ticks left when a poke pulled us up
 
         this._actor = new St.DrawingArea({
             reactive: false,
@@ -209,8 +213,8 @@ export class Cat {
         }
     }
 
-    _fallAsleep() {
-        this._napTicks = this._drawTicks(NAP_MIN, NAP_MAX);
+    _fallAsleep(napTicks = null) {
+        this._napTicks = napTicks ?? this._drawTicks(NAP_MIN, NAP_MAX);
         this._napPlanned = false;
         const win = this._focusWindow();
         if (win) {
@@ -226,6 +230,15 @@ export class Cat {
         this._setState(State.SLEEP);
     }
 
+    // Tail of a sulk or walk-off: settle back into the nap we were pulled out
+    // of, keeping whatever time was left. The cooldown stops the offender still
+    // loitering nearby from instantly re-waking us.
+    _dozeBack() {
+        this._dozeBackAfter = false;
+        this._pokeCooldown = this._drawTicks(POKE_SNOOZE, POKE_SNOOZE);
+        this._fallAsleep(this._napStash > 0 ? this._napStash : null);
+    }
+
     _wakeUp() {
         this._unpin();
         this._napTicks = 0;
@@ -236,30 +249,36 @@ export class Cat {
         this._setState(State.AWAKE);
     }
 
-    // Someone (a strolling sibling, or the pointer) got too close to a
-    // sleeper. The sleeper decides how to take it: four reactions, equal
-    // odds. POKE_SNOOZE keeps a doze-off from becoming a wake-up loop while
-    // the offender is still standing there.
+    // Someone got too close to (or prodded) a sleeper. Your cursor always gets
+    // a chase; another cat gets one of three reactions. Only sleepers are
+    // grabbed. POKE_SNOOZE keeps a doze-off from becoming a wake-up loop.
     poke(offender, offenderX) {
         if (this._mode !== 'prowl' || this._state !== State.SLEEP ||
             this._pokeCooldown > 0)
             return;
-        switch (Math.floor(Math.random() * 4)) {
-        case 0:  // startle, groom the indignity away, carry on
+        if (offender === 'pointer') {  // oh, it is ON, and it stays on if re-poked
+            this._wakeUp();
+            this._afterAwake = 'chase';
+            this._chaseTarget = 'pointer';
+            this._chaseTicks = this._drawTicks(CHASE_TIME, CHASE_TIME);
+            return;
+        }
+        const remaining = this._napTicks;  // stash before _wakeUp zeroes it
+        switch (Math.floor(Math.random() * 3)) {
+        case 0:  // startle, groom the indignity away, then maybe doze off again
             this._wakeUp();
             this._afterAwake = 'groom';
+            this._napStash = remaining;
+            this._dozeBackAfter = Math.random() < DOZE_BACK_CHANCE;
             break;
-        case 1:  // get up and walk off, pointedly, the other way
+        case 1:  // get up and walk off the other way, then maybe doze off again
             this._wakeUp();
             this._afterAwake = 'move';
             this._wanderX = this._awayFrom(offenderX);
+            this._napStash = remaining;
+            this._dozeBackAfter = Math.random() < DOZE_BACK_CHANCE;
             break;
-        case 2:  // look around, decide it wasn't worth it, doze off again
-            this._pokeCooldown = this._drawTicks(POKE_SNOOZE, POKE_SNOOZE);
-            this._afterAwake = 'sleep';
-            this._setState(State.AWAKE);
-            break;
-        case 3:  // oh, it is ON
+        case 2:  // give chase
             this._wakeUp();
             this._afterAwake = 'chase';
             this._chaseTarget = offender;
@@ -455,6 +474,8 @@ export class Cat {
             if (this._stateCount >= KAKI_TIME) {
                 if (this._napPlanned) {
                     this._setState(State.AKUBI);
+                } else if (this._dozeBackAfter) {
+                    this._dozeBack();
                 } else {
                     this._wanderX = null;
                     this._setState(State.MOVE);
@@ -507,8 +528,14 @@ export class Cat {
         case State.MOVE:
         case State.CHASE:
             if (this._state === State.CHASE) {
+                // re-poking (the cursor back over the cat) keeps a pointer chase alive
+                if (this._chaseTarget === 'pointer' &&
+                    target.px >= this._x && target.px < this._x + this._size &&
+                    target.py >= this._y && target.py < this._y + this._size)
+                    this._chaseTicks = this._drawTicks(CHASE_TIME, CHASE_TIME);
                 this._chaseTicks--;
                 if (this._chaseTicks <= 0) {
+                    this._moving = false;
                     this._pauseTicks = this._drawTicks(PAUSE_MIN, PAUSE_MAX);
                     this._chaseTarget = null;
                     this._setState(State.STOP);
@@ -516,6 +543,7 @@ export class Cat {
                 }
             }
             if (distance > this._catch) {
+                this._moving = true;
                 this._stepTowards(dx, dy, distance);
                 for (const cat of this._siblings()) {
                     if (cat !== this && cat._state === State.SLEEP &&
@@ -523,10 +551,23 @@ export class Cat {
                             WAKE_RADIUS * this._size)
                         cat.poke(this, this._x);
                 }
-            } else if (this._state === State.MOVE) {
-                this._wanderX = null;
-                this._pauseTicks = this._drawTicks(PAUSE_MIN, PAUSE_MAX);
-                this._setState(State.STOP);
+            } else {
+                this._moving = false;  // arrived / caught: stand, don't paddle
+                if (this._state === State.MOVE) {
+                    if (this._dozeBackAfter) {
+                        this._dozeBack();
+                        break;
+                    }
+                    this._wanderX = null;
+                    this._pauseTicks = this._drawTicks(PAUSE_MIN, PAUSE_MAX);
+                    this._setState(State.STOP);
+                } else if (this._chaseTarget !== 'pointer') {
+                    // caught a sibling: stop here, the two park together
+                    this._pauseTicks = this._drawTicks(PAUSE_MIN, PAUSE_MAX);
+                    this._chaseTarget = null;
+                    this._setState(State.STOP);
+                }
+                // caught the pointer: hold a settled frame; the timer runs on
             }
             break;
         }
@@ -588,7 +629,7 @@ export class Cat {
             return `${this._togiDir}${alt}`;
         case State.MOVE:
         case State.CHASE:
-            return `${this._dir}${alt}`;
+            return this._moving ? `${this._dir}${alt}` : 'mati2';
         default:
             return 'mati2';
         }
