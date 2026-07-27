@@ -125,7 +125,7 @@ export class Cat {
         parent.add_child(this._label);
 
         this._tickMs = Math.max(20, Math.round(config.time));
-        if (this._mode === 'prowl')
+        if (this._mode === 'prowl' || this._mode === 'idleprowl')
             this._energy = this._drawTicks(WANDER_ENERGY_MIN, WANDER_ENERGY_MAX);
         this._timer = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT, this._tickMs, () => {
@@ -304,7 +304,7 @@ export class Cat {
     // Where the cat wants to be, and whether the pointer is beyond a window
     // border ('left'/'right') so it should claw at it once it gets there.
     _target() {
-        if (this._mode === 'prowl')
+        if (this._mode === 'prowl' || this._mode === 'idleprowl')
             return this._prowlTarget();
         const [px, py] = global.get_pointer();
         const size = this._size;
@@ -579,7 +579,7 @@ export class Cat {
             this._stateCount++;
 
         const target = this._target();
-        if (this._mode === 'prowl')
+        if (this._mode === 'prowl' || this._mode === 'idleprowl')
             this._tickProwl(target);
         else
             this._tickChase(target);

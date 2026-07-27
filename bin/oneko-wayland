@@ -96,9 +96,9 @@ def mode(value):
     v = value.strip().lower()
     if v == "catwalk":  # renamed to prowl; still accepted so old scripts work
         v = "prowl"
-    if v not in ("focus", "mouse", "prowl"):
+    if v not in ("focus", "mouse", "prowl", "idleprowl"):
         raise argparse.ArgumentTypeError(
-            f"{value!r} is not one of: focus, mouse, prowl")
+            f"{value!r} is not one of: focus, mouse, prowl, idleprowl")
     return v
 
 
@@ -276,7 +276,9 @@ def main():
                      help="focus: ride the focused window's top edge (like "
                           "-tofocus); mouse: free pointer chasing; prowl: "
                           "stroll the focused window's top edge and nap on "
-                          "your own schedule (default: focus)")
+                          "your own schedule; idleprowl: prowl while you're at "
+                          "the machine, sleep when the pointer goes still "
+                          "(default: focus)")
     add.add_argument("--scale", type=float, default=1,
                      help="sprite scale factor (default: 1; try 2 on big screens)")
     add.set_defaults(func=cmd_add)

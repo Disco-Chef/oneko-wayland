@@ -121,8 +121,8 @@ export default class OnekoWaylandExtension extends Extension {
         }
         if (config.mode === 'catwalk')  // renamed to prowl; keep old saved state working
             config.mode = 'prowl';
-        if (!['focus', 'mouse', 'prowl'].includes(config.mode))
-            throw new Error('mode must be "focus", "mouse" or "prowl"');
+        if (!['focus', 'mouse', 'prowl', 'idleprowl'].includes(config.mode))
+            throw new Error('mode must be "focus", "mouse", "prowl" or "idleprowl"');
         config.speed = Math.max(1, Number(config.speed) || DEFAULTS.speed);
         config.time = Math.max(20, Number(config.time) || DEFAULTS.time);
         config.offset = Number(config.offset) || 0;
