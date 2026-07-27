@@ -27,6 +27,12 @@ const DOZE_BACK_CHANCE = 0.35; // after a sulk or walk-off, odds of dozing back 
 const CHASE_TIME = 5;           // how long a chase reaction lasts
 const WAKE_RADIUS = 1.5;        // sprite widths; any closer is rude
 
+// idleprowl: the pointer is the pulse. Movement past the deadzone is real
+// activity (wakes a sleeper); a quiet spell sends an awake cat to sleep.
+const IDLE_MIN = 2;             // per-cat quiet spell before settling
+const IDLE_MAX = 6;
+const POINTER_DEADZONE = 75;    // raw px; smaller nudges (anti screen-dim) are ignored
+
 const State = {
     STOP: 'stop',
     JARE: 'jare',       // washing its face
@@ -95,6 +101,9 @@ export class Cat {
         this._moving = false;        // are we actually closing distance this tick
         this._dozeBackAfter = false; // poke reaction should end by dozing off again
         this._napStash = 0;          // nap ticks left when a poke pulled us up
+        this._pointerAnchor = null;  // last pointer spot that counted as movement
+        this._idleTicks = 0;         // ticks since that movement
+        this._idleLimit = this._drawTicks(IDLE_MIN, IDLE_MAX);
 
         this._actor = new St.DrawingArea({
             reactive: false,
@@ -204,6 +213,22 @@ export class Cat {
         return ox >= mid
             ? lo + Math.random() * (mid - lo)
             : mid + Math.random() * (hi - mid);
+    }
+
+    // idleprowl: did the pointer move beyond the deadzone since we last
+    // anchored? Maintains the anchor. A small in-place jiggle (keeping a short
+    // screen-dim timeout at bay) stays inside the deadzone and reads as still.
+    _pointerMoved(px, py) {
+        if (this._pointerAnchor === null) {
+            this._pointerAnchor = [px, py];
+            return false;
+        }
+        const [ax, ay] = this._pointerAnchor;
+        if (Math.hypot(px - ax, py - ay) > POINTER_DEADZONE) {
+            this._pointerAnchor = [px, py];
+            return true;
+        }
+        return false;
     }
 
     _unpin() {
@@ -452,8 +477,29 @@ export class Cat {
     // The prowl brain: self-directed strolls, long naps, strong opinions
     // about being woken. The pointer is scenery (mostly; see poke()).
     _tickProwl(target) {
-        if (this._state !== State.SLEEP && this._energy > 0)
-            this._energy--;
+        if (this._mode === 'idleprowl') {
+            const active = this._pointerMoved(target.px, target.py);
+            if (active) {
+                this._idleTicks = 0;
+                this._idleLimit = this._drawTicks(IDLE_MIN, IDLE_MAX);
+                if (this._state === State.SLEEP) {
+                    this._wakeUp();
+                    return;  // stir this tick, rejoin the wander next tick
+                }
+            } else {
+                this._idleTicks++;
+                // been quiet long enough: plop where we are and wind down
+                const settling = this._state === State.JARE ||
+                    this._state === State.KAKI || this._state === State.AKUBI;
+                if (this._state !== State.SLEEP && this._state !== State.AWAKE &&
+                    !settling && this._idleTicks >= this._idleLimit) {
+                    this._napPlanned = true;
+                    this._setState(State.JARE);
+                }
+            }
+        } else if (this._state !== State.SLEEP && this._energy > 0) {
+            this._energy--;  // prowl only: internal awake budget
+        }
         if (this._pokeCooldown > 0)
             this._pokeCooldown--;
 
@@ -497,8 +543,8 @@ export class Cat {
                 this.poke('pointer', target.px);
                 break;
             }
-            if (this._napTicks <= 0) {
-                this._wakeUp();
+            if (this._mode !== 'idleprowl' && this._napTicks <= 0) {
+                this._wakeUp();  // prowl: nap timer expired. idleprowl waits for the pointer.
                 break;
             }
             // ride along if the pinned window was dragged
