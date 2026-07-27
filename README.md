@@ -25,13 +25,23 @@ sits at the corner and claws at the border (the original *togi* animation).
 The full state machine is ported (wash, scratch, yawn, sleep) with the
 original timing constants from `oneko.h`.
 
-There is also a third, more contemplative mode: `catwalk`. Those cats keep to
-the focused window's top edge but ignore your pointer; they stroll to spots of
-their own choosing, groom, and take long naps pinned to the window they fell
-asleep on. A cat that wanders into a sleeping colleague wakes it, and the
-woken cat picks one of four reactions, one of which is a chase. Poking a
-sleeper with the pointer counts as a waking, and yes, it may chase the pointer
-for it.
+There is also a third, more contemplative mode: `prowl` (once called
+`catwalk`, which still works as an alias). Those cats keep to the focused
+window's top edge but ignore your pointer; they stroll to spots of their own
+choosing, groom, and take long naps pinned to the window they fell asleep on.
+A cat that wanders into a sleeping colleague wakes it, and the woken cat rolls
+one of three reactions: a sulk-and-groom, a pointed walk off the other way, or
+a chase; after a sulk or a walk-off it might just flop back to sleep. Poke a
+sleeper with your pointer and it always gives chase, following the cursor for a
+few seconds; poke it again to keep the chase going, or park the cursor on it
+and it sits until you move.
+
+And a fourth, `idleprowl`: the same self-directed prowl, but the pointer is its
+pulse. While you're using the mouse the cats prowl, pause, groom and take the
+odd short nap; leave the pointer still for a couple of seconds and they wind
+down and sleep, staying down until you move it again. Small nudges (the kind
+you make to keep a short screen-dim timeout at bay) are ignored, so only real
+movement rouses them.
 
 ## Compatibility
 
@@ -94,7 +104,7 @@ oneko-wayland list
 | `--offset-y` | shift the cat's spot down(+)/up(−), in px | `0` |
 | `--wake-distance` | how far (px) the target must be before a resting cat gets up (try `64` for a lazy cat) | `6` |
 | `--catch-distance` | how close (px) counts as having caught the target | `6` |
-| `-m, --mode` | `focus` = ride the focused window (old `-tofocus`), `mouse` = free pointer chasing, `catwalk` = stroll the focused window and nap on its own schedule | `focus` |
+| `-m, --mode` | `focus` = ride the focused window (old `-tofocus`), `mouse` = free pointer chasing, `prowl` = stroll the focused window and nap on its own schedule (old name `catwalk` still accepted), `idleprowl` = prowl while you're at the machine, sleep when the pointer goes still | `focus` |
 | `--scale` | sprite scale factor (try `2` on big screens) | `1` |
 
 Old-timer aliases keep working: `--variant`, `--fg`, `--bg`, `--offset`, and
@@ -184,9 +194,13 @@ alias catsmouse='oneko-wayland add MrPickles --body orange --outline brown --spe
                  oneko-wayland add Adonis    --body grey   --outline black --speed 16 --offset-x=-35 --time 100500 --mode mouse &&
                  oneko-wayland add Sultana   --body white  --outline red   --speed 15 --offset-x=0   --time 100250 --mode mouse'
 
-alias catswalk='oneko-wayland add MrPickles --body orange --outline brown --speed 14 --offset-x=35  --time 100000 --mode catwalk &&
-                oneko-wayland add Adonis    --body grey   --outline black --speed 16 --offset-x=-35 --time 100500 --mode catwalk &&
-                oneko-wayland add Sultana   --body white  --outline red   --speed 15 --offset-x=0   --time 100250 --mode catwalk'
+alias catswalk='oneko-wayland add MrPickles --body orange --outline brown --speed 14 --offset-x=35  --time 100000 --mode prowl &&
+                oneko-wayland add Adonis    --body grey   --outline black --speed 16 --offset-x=-35 --time 100500 --mode prowl &&
+                oneko-wayland add Sultana   --body white  --outline red   --speed 15 --offset-x=0   --time 100250 --mode prowl'
+
+alias catsidleprowl='oneko-wayland add MrPickles --body orange --outline brown --speed 14 --offset-x=35  --time 100000 --mode idleprowl &&
+                     oneko-wayland add Adonis    --body grey   --outline black --speed 16 --offset-x=-35 --time 100500 --mode idleprowl &&
+                     oneko-wayland add Sultana   --body white  --outline red   --speed 15 --offset-x=0   --time 100250 --mode idleprowl'
 
 alias catsgohome='oneko-wayland remove --all'
 ```
