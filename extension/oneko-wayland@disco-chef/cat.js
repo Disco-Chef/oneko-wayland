@@ -32,6 +32,9 @@ const WAKE_RADIUS = 1.5;        // sprite widths; any closer is rude
 const IDLE_MIN = 2;             // per-cat quiet spell before settling
 const IDLE_MAX = 6;
 const POINTER_DEADZONE = 75;    // raw px; smaller nudges (anti screen-dim) are ignored
+const SHORT_NAP_MIN = 3;        // a voluntary cat-nap while you're active
+const SHORT_NAP_MAX = 12;
+const SHORT_NAP_CHANCE = 0.15;  // per-pause chance of one
 
 const State = {
     STOP: 'stop',
@@ -104,6 +107,7 @@ export class Cat {
         this._pointerAnchor = null;  // last pointer spot that counted as movement
         this._idleTicks = 0;         // ticks since that movement
         this._idleLimit = this._drawTicks(IDLE_MIN, IDLE_MAX);
+        this._shortNap = false;  // idleprowl: this sleep is a self-timed cat-nap
 
         this._actor = new St.DrawingArea({
             reactive: false,
@@ -266,6 +270,7 @@ export class Cat {
 
     _wakeUp() {
         this._unpin();
+        this._shortNap = false;
         this._napTicks = 0;
         this._energy = this._drawTicks(WANDER_ENERGY_MIN, WANDER_ENERGY_MAX);
         this._wanderX = null;
@@ -314,6 +319,22 @@ export class Cat {
 
     // A pause just ended: nap if due (or unlucky), groom, or stroll on.
     _nextIdleAction() {
+        if (this._mode === 'idleprowl') {
+            // no energy budget here; the odd short self-nap is the only
+            // voluntary sleep, and it winds down like any other nap.
+            if (Math.random() < SHORT_NAP_CHANCE) {
+                this._shortNap = true;
+                this._napPlanned = true;
+                this._setState(State.JARE);
+            } else if (Math.random() < GROOM_CHANCE) {
+                this._napPlanned = false;
+                this._setState(State.JARE);
+            } else {
+                this._wanderX = null;
+                this._setState(State.MOVE);
+            }
+            return;
+        }
         if (this._energy <= 0 || Math.random() < EARLY_NAP_CHANCE) {
             this._napPlanned = true;
             this._setState(State.JARE);
@@ -482,8 +503,8 @@ export class Cat {
             if (active) {
                 this._idleTicks = 0;
                 this._idleLimit = this._drawTicks(IDLE_MIN, IDLE_MAX);
-                if (this._state === State.SLEEP) {
-                    this._wakeUp();
+                if (this._state === State.SLEEP && !this._shortNap) {
+                    this._wakeUp();  // an idle-sleep wakes on movement; a cat-nap runs its timer
                     return;  // stir this tick, rejoin the wander next tick
                 }
             } else {
@@ -530,7 +551,9 @@ export class Cat {
             break;
         case State.AKUBI:
             if (this._stateCount >= AKUBI_TIME)
-                this._fallAsleep();
+                this._fallAsleep(this._shortNap
+                    ? this._drawTicks(SHORT_NAP_MIN, SHORT_NAP_MAX)
+                    : null);
             break;
         case State.SLEEP:
             this._napTicks--;
@@ -543,8 +566,18 @@ export class Cat {
                 this.poke('pointer', target.px);
                 break;
             }
-            if (this._mode !== 'idleprowl' && this._napTicks <= 0) {
-                this._wakeUp();  // prowl: nap timer expired. idleprowl waits for the pointer.
+            if (this._mode === 'idleprowl') {
+                if (this._shortNap && this._napTicks <= 0) {
+                    if (this._idleTicks < this._idleLimit) {
+                        this._shortNap = false;
+                        this._wakeUp();  // you're still about: up and at it
+                        break;
+                    }
+                    this._shortNap = false;  // you've gone quiet: this is now an idle-sleep
+                }
+                // idle-sleep: no timer, wait for the pointer (handled at tick top)
+            } else if (this._napTicks <= 0) {
+                this._wakeUp();  // prowl: nap timer expired
                 break;
             }
             // ride along if the pinned window was dragged
