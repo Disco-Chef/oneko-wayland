@@ -27,6 +27,7 @@ const POKE_SNOOZE = 3;          // ignore pokes this long after dozing back off
 const DOZE_BACK_CHANCE = 0.35; // after a sulk or walk-off, odds of dozing back off
 const CHASE_TIME = 5;           // how long a chase reaction lasts
 const WAKE_RADIUS = 1.5;        // sprite widths; any closer is rude
+const CUDDLE = 0.8;             // sprite widths between a chaser and its catch
 
 // idleprowl: the pointer is the pulse. Movement past the deadzone is real
 // activity (wakes a sleeper); a quiet spell sends an awake cat to sleep.
@@ -113,6 +114,7 @@ export class Cat {
         this._idleTicks = 0;         // ticks since that movement
         this._idleLimit = this._drawTicks(IDLE_MIN, IDLE_MAX);
         this._shortNap = false;  // idleprowl: this sleep is a self-timed cat-nap
+        this._wasHovered = false;  // was the cursor over us last tick
 
         // One child per frame, each painted once and then only shown or
         // hidden, so changing frames never re-runs Cairo (see _showFrame).
@@ -476,9 +478,11 @@ export class Cat {
         }
         if (this._state === State.CHASE) {
             const t = this._chaseTarget;
-            return t === 'pointer'
-                ? {x: px - size / 2, y: py - size / 2, px, py}
-                : {x: t._x, y: t._y, px, py};
+            if (t === 'pointer')
+                return {x: px - size / 2, y: py - size / 2, px, py};
+            // settle beside the catch, a little overlapped, not on top of it
+            const side = this._x < t._x ? -1 : 1;
+            return {x: t._x + side * CUDDLE * size, y: t._y, px, py};
         }
         // null, not undefined, so _wanderRange doesn't look the window up again
         const rect = this._focusWindow()?.get_frame_rect() ?? null;
@@ -576,6 +580,12 @@ export class Cat {
     // The prowl brain: self-directed strolls, long naps, strong opinions
     // about being woken. The pointer is scenery (mostly; see poke()).
     _tickProwl(target, steps) {
+        // A poke is the cursor arriving on the cat, not resting there, so a
+        // parked cursor neither renews a chase nor re-wakes a sleeper.
+        const hovered = this._isHovered(target.px, target.py);
+        const entered = hovered && !this._wasHovered;
+        this._wasHovered = hovered;
+
         if (this._mode === 'idleprowl') {
             const active = this._pointerMoved(target.px, target.py);
             if (active) {
@@ -639,7 +649,7 @@ export class Cat {
                 this._wakeUp();
                 break;
             }
-            if (this._isHovered(target.px, target.py)) {
+            if (entered) {
                 this.poke('pointer', target.px);
                 break;
             }
@@ -684,15 +694,21 @@ export class Cat {
         case State.CHASE:
             if (this._state === State.CHASE) {
                 // re-poking (the cursor back over the cat) keeps a pointer chase alive
-                if (this._chaseTarget === 'pointer' &&
-                    this._isHovered(target.px, target.py))
+                if (this._chaseTarget === 'pointer' && entered)
                     this._chaseTicks = this._drawTicks(CHASE_TIME, CHASE_TIME);
                 this._chaseTicks--;
                 if (this._chaseTicks <= 0) {
+                    // the chase can end anywhere: stroll back to the perch
+                    // rather than grooming or napping mid-air, and if the
+                    // cursor was left parked on it, doze off once there
+                    if (this._chaseTarget === 'pointer' && hovered) {
+                        this._dozeBackAfter = true;
+                        this._napStash = 0;
+                    }
                     this._moving = false;
-                    this._pauseTicks = this._drawTicks(PAUSE_MIN, PAUSE_MAX);
                     this._chaseTarget = null;
-                    this._setState(State.STOP);
+                    this._wanderX = null;
+                    this._setState(State.MOVE);
                     break;
                 }
             }

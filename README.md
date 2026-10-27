@@ -33,8 +33,8 @@ A cat that wanders into a sleeping colleague wakes it, and the woken cat rolls
 one of three reactions: a sulk-and-groom, a pointed walk off the other way, or
 a chase; after a sulk or a walk-off it might just flop back to sleep. Poke a
 sleeper with your pointer and it always gives chase, following the cursor for a
-few seconds; poke it again to keep the chase going, or park the cursor on it
-and it sits until you move.
+few seconds; move off it and back on to keep the chase going, or park the
+cursor on it and it soon gives up, strolls back to its perch and dozes off.
 
 And a fourth, `idleprowl`: the same self-directed prowl, but the pointer is its
 pulse. While you're using the mouse the cats prowl, pause, groom and take the
