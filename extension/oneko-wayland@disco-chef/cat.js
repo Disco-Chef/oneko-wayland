@@ -30,9 +30,9 @@ const WAKE_RADIUS = 1.5;        // sprite widths; any closer is rude
 
 // idleprowl: the pointer is the pulse. Movement past the deadzone is real
 // activity (wakes a sleeper); a quiet spell sends an awake cat to sleep.
-const IDLE_MIN = 2;             // per-cat quiet spell before settling
-const IDLE_MAX = 6;
-const POINTER_DEADZONE = 75;    // raw px; smaller nudges (anti screen-dim) are ignored
+const IDLE_MIN = 6;             // per-cat quiet spell before settling
+const IDLE_MAX = 15;
+const POINTER_DEADZONE = 300;   // raw px; smaller nudges (anti screen-dim) are ignored
 const SHORT_NAP_MIN = 3;        // a voluntary cat-nap while you're active
 const SHORT_NAP_MAX = 12;
 const SHORT_NAP_CHANCE = 0.15;  // per-pause chance of one
@@ -348,11 +348,15 @@ export class Cat {
     // Someone got too close to (or prodded) a sleeper. Your cursor always gets
     // a chase; another cat gets one of three reactions. Only sleepers are
     // grabbed. POKE_SNOOZE keeps a doze-off from becoming a wake-up loop.
+    // idleprowl sleepers get the sibling reactions but ignore the cursor:
+    // pointer movement is what wakes them there.
     poke(offender, offenderX) {
-        if (this._mode !== 'prowl' || this._state !== State.SLEEP ||
-            this._pokeCooldown > 0)
+        if ((this._mode !== 'prowl' && this._mode !== 'idleprowl') ||
+            this._state !== State.SLEEP || this._pokeCooldown > 0)
             return;
         if (offender === 'pointer') {  // oh, it is ON, and it stays on if re-poked
+            if (this._mode === 'idleprowl')
+                return;
             this._wakeUp();
             this._afterAwake = 'chase';
             this._chaseTarget = 'pointer';
@@ -360,6 +364,12 @@ export class Cat {
             return;
         }
         const remaining = this._napTicks;  // stash before _wakeUp zeroes it
+        if (this._mode === 'idleprowl') {
+            // restart the quiet spell, or a still pointer would send the cat
+            // straight back down before its reaction plays out
+            this._idleTicks = 0;
+            this._idleLimit = this._drawTicks(IDLE_MIN, IDLE_MAX);
+        }
         switch (Math.floor(Math.random() * 3)) {
         case 0:  // startle, groom the indignity away, then maybe doze off again
             this._wakeUp();
@@ -577,11 +587,11 @@ export class Cat {
                 }
             } else {
                 this._idleTicks += steps;
-                // been quiet long enough: plop where we are and wind down
-                const settling = this._state === State.JARE ||
-                    this._state === State.KAKI || this._state === State.AKUBI;
-                if (this._state !== State.SLEEP && this._state !== State.AWAKE &&
-                    !settling && this._idleTicks >= this._idleLimit) {
+                // been quiet long enough: wind down at the next pause, so a
+                // walk (or a chase) finishes on the perch first. Anchor at the
+                // resting pointer, so a nudge there doesn't count as movement.
+                if (this._state === State.STOP && this._idleTicks >= this._idleLimit) {
+                    this._pointerAnchor = [target.px, target.py];
                     this._napPlanned = true;
                     this._setState(State.JARE);
                 }
@@ -641,6 +651,7 @@ export class Cat {
                         break;
                     }
                     this._shortNap = false;  // you've gone quiet: this is now an idle-sleep
+                    this._pointerAnchor = [target.px, target.py];
                 }
                 // idle-sleep: no timer, wait for the pointer (handled at tick top)
             } else if (this._napTicks <= 0) {

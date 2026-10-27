@@ -38,7 +38,7 @@ and it sits until you move.
 
 And a fourth, `idleprowl`: the same self-directed prowl, but the pointer is its
 pulse. While you're using the mouse the cats prowl, pause, groom and take the
-odd short nap; leave the pointer still for a couple of seconds and they wind
+odd short nap; leave the pointer still for several seconds and they wind
 down and sleep, staying down until you move it again. Small nudges (the kind
 you make to keep a short screen-dim timeout at bay) are ignored, so only real
 movement rouses them.
