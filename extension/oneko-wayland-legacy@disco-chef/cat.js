@@ -1,3 +1,4 @@
+import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import St from 'gi://St';
@@ -62,21 +63,23 @@ export class Cat {
         this._tickCount = 0;
         this._dir = 'down';
         this._togiDir = 'ltogi';
-        this._frame = 'mati2';
 
-        this._actor = new St.DrawingArea({
+        // One child per frame, each painted once and then only shown or
+        // hidden, so changing frames never re-runs Cairo (see _showFrame).
+        this._actor = new Clutter.Actor({
             reactive: false,
             width: this._size,
             height: this._size,
         });
+        this._frameAreas = new Map();
         this._destroyed = false;
-        this._actor.connect('repaint', area => this._repaint(area));
         // If the actor is disposed out from under us (e.g. the shell tearing
         // down on logout/kill), stop ticking before a queued timer can touch
         // the dead C object.
         this._actor.connect('destroy', () => this.destroy());
         parent.add_child(this._actor);
         this._actor.set_position(Math.round(this._x), Math.round(this._y));
+        this._showFrame('mati2');
 
         // Name tag shown while the pointer is over the cat. The cat itself
         // stays non-reactive (it must not steal clicks from the window under
@@ -92,8 +95,23 @@ export class Cat {
         this._label.hide();
         parent.add_child(this._label);
 
+        this._tickMs = Math.max(20, Math.round(config.time));
+        this._timer = 0;
+        this.resume();
+    }
+
+    pause() {
+        if (this._timer) {
+            GLib.source_remove(this._timer);
+            this._timer = 0;
+        }
+    }
+
+    resume() {
+        if (this._timer || this._destroyed)
+            return;
         this._timer = GLib.timeout_add(
-            GLib.PRIORITY_DEFAULT, Math.max(20, Math.round(config.time)), () => {
+            GLib.PRIORITY_DEFAULT, this._tickMs, () => {
                 if (this._destroyed)
                     return GLib.SOURCE_REMOVE;
                 this._tick();
@@ -116,10 +134,27 @@ export class Cat {
         this._label = null;
     }
 
-    _repaint(area) {
+    _showFrame(frame) {
+        this._frameAreas.get(this._frame)?.hide();
+        let area = this._frameAreas.get(frame);
+        if (!area) {
+            area = new St.DrawingArea({
+                reactive: false,
+                width: this._size,
+                height: this._size,
+            });
+            area.connect('repaint', a => this._repaint(a, frame));
+            this._actor.add_child(area);
+            this._frameAreas.set(frame, area);
+        }
+        area.show();
+        this._frame = frame;
+    }
+
+    _repaint(area, frame) {
         const cr = area.get_context();
         const s = this._size / this._spriteSize;
-        const runs = this._runs[this._frame];
+        const runs = this._runs[frame];
         if (this._colored) {
             for (const [x, y, len, r, g, b, a] of runs.runs) {
                 cr.setSourceRGBA(r / 255, g / 255, b / 255, a / 255);
@@ -255,10 +290,8 @@ export class Cat {
         }
 
         const frame = this._currentFrame();
-        if (frame !== this._frame) {
-            this._frame = frame;
-            this._actor.queue_repaint();
-        }
+        if (frame !== this._frame)
+            this._showFrame(frame);
 
         this._updateLabel(target.px, target.py);
     }

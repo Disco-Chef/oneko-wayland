@@ -66,11 +66,18 @@ export default class OnekoWaylandExtension extends Extension {
         this._group = new Clutter.Actor();
         Main.layoutManager.uiGroup.add_child(this._group);
 
-        // Cats make no sense floating over the Activities overview.
-        this._overviewShowingId = Main.overview.connect('showing',
-            () => this._group.hide());
-        this._overviewHiddenId = Main.overview.connect('hidden',
-            () => this._group.show());
+        // Cats make no sense floating over the Activities overview, and
+        // hidden cats have no reason to keep ticking.
+        this._overviewShowingId = Main.overview.connect('showing', () => {
+            this._group.hide();
+            for (const cat of this._cats.values())
+                cat.pause();
+        });
+        this._overviewHiddenId = Main.overview.connect('hidden', () => {
+            this._group.show();
+            for (const cat of this._cats.values())
+                cat.resume();
+        });
 
         this._dbus = Gio.DBusExportedObject.wrapJSObject(IFACE, this);
         this._dbus.export(Gio.DBus.session, OBJECT_PATH);
@@ -160,7 +167,10 @@ export default class OnekoWaylandExtension extends Extension {
             ? loadSheet(config.sheet)
             : this._sprites[config.variant];
         this._cats.get(config.name)?.destroy();
-        this._cats.set(config.name, new Cat(config, frames, this._group));
+        const cat = new Cat(config, frames, this._group);
+        if (Main.overview.visible)
+            cat.pause();
+        this._cats.set(config.name, cat);
     }
 
     AddCat(configJson) {
