@@ -708,6 +708,9 @@ export class Cat {
             return `${this._togiDir}${alt}`;
         case State.MOVE:
         case State.CHASE:
+            // only the prowl brain stands still in MOVE (see _tickProwl)
+            if (this._mode !== 'prowl' && this._mode !== 'idleprowl')
+                return `${this._dir}${alt}`;
             return this._moving ? `${this._dir}${alt}` : 'mati2';
         default:
             return 'mati2';
