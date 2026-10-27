@@ -222,7 +222,7 @@ def cmd_list(_args):
         print("no cats around")
         return
     for c in cats:
-        print(f"{c['name']:12} {kind(c):7} mode={c['mode']:5} "
+        print(f"{c['name']:12} {kind(c):7} mode={c['mode']:9} "
               f"body={c['bg']} outline={c['fg']} speed={c['speed']} "
               f"time={c['time']}ms offset={c['offset']:+},{c.get('offsetY', 0):+} "
               f"scale={c['scale']}")

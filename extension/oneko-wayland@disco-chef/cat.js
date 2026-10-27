@@ -629,8 +629,7 @@ export class Cat {
                 this._wakeUp();
                 break;
             }
-            if (target.px >= this._x && target.px < this._x + this._size &&
-                target.py >= this._y && target.py < this._y + this._size) {
+            if (this._isHovered(target.px, target.py)) {
                 this.poke('pointer', target.px);
                 break;
             }
@@ -663,8 +662,6 @@ export class Cat {
                 if (next === 'groom') {
                     this._napPlanned = false;
                     this._setState(State.JARE);
-                } else if (next === 'sleep') {
-                    this._setState(State.SLEEP);
                 } else if (next === 'chase') {
                     this._setState(State.CHASE);
                 } else {
@@ -677,8 +674,7 @@ export class Cat {
             if (this._state === State.CHASE) {
                 // re-poking (the cursor back over the cat) keeps a pointer chase alive
                 if (this._chaseTarget === 'pointer' &&
-                    target.px >= this._x && target.px < this._x + this._size &&
-                    target.py >= this._y && target.py < this._y + this._size)
+                    this._isHovered(target.px, target.py))
                     this._chaseTicks = this._drawTicks(CHASE_TIME, CHASE_TIME);
                 this._chaseTicks--;
                 if (this._chaseTicks <= 0) {
@@ -740,10 +736,13 @@ export class Cat {
         this._updateLabel(target.px, target.py);
     }
 
+    _isHovered(px, py) {
+        return px >= this._x && px < this._x + this._size &&
+            py >= this._y && py < this._y + this._size;
+    }
+
     _updateLabel(px, py) {
-        const hovered = px >= this._x && px < this._x + this._size &&
-                        py >= this._y && py < this._y + this._size;
-        if (!hovered) {
+        if (!this._isHovered(px, py)) {
             this._label.hide();
             return;
         }
