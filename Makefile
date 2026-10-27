@@ -1,4 +1,4 @@
-UUID   = oneko-wayland@disco-chef
+UUID   = oneko-wayland-legacy@disco-chef
 EXTDIR = $(HOME)/.local/share/gnome-shell/extensions/$(UUID)
 BINDIR = $(HOME)/.local/bin
 
@@ -22,7 +22,7 @@ pack: sprites
 uninstall:
 	-gnome-extensions disable $(UUID) 2>/dev/null
 	rm -rf $(EXTDIR)
-	rm -f $(BINDIR)/oneko-wayland
+	rm -f $(BINDIR)/oneko-wayland-legacy
 
 # Development: run a GNOME Shell development-kit instance (a shell in a
 # window) with a private D-Bus, so you can iterate without logging out.

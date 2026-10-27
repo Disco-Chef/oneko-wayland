@@ -15,7 +15,7 @@ from pathlib import Path
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else (
     Path(__file__).resolve().parent.parent
-    / "extension" / "oneko-wayland@disco-chef" / "sprites.json"
+    / "extension" / "oneko-wayland-legacy@disco-chef" / "sprites.json"
 )
 
 BYTES_RE = re.compile(r"0x([0-9a-fA-F]{1,2})")

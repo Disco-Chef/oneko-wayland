@@ -8,12 +8,12 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Cat} from './cat.js';
 import {loadSheet, loadSprites} from './sprites.js';
 
-const BUS_NAME = 'org.oneko.Wayland';
-const OBJECT_PATH = '/org/oneko/Wayland';
+const BUS_NAME = 'org.oneko.WaylandLegacy';
+const OBJECT_PATH = '/org/oneko/WaylandLegacy';
 
 const IFACE = `
 <node>
-  <interface name="org.oneko.Wayland">
+  <interface name="org.oneko.WaylandLegacy">
     <method name="AddCat">
       <arg type="s" direction="in" name="config"/>
       <arg type="s" direction="out" name="result"/>
@@ -198,7 +198,7 @@ export default class OnekoWaylandExtension extends Extension {
     }
 
     get _stateFile() {
-        return GLib.build_filenamev([GLib.get_user_state_dir(), 'oneko-wayland-cats.json']);
+        return GLib.build_filenamev([GLib.get_user_state_dir(), 'oneko-wayland-legacy-cats.json']);
     }
 
     _saveState() {
@@ -208,7 +208,7 @@ export default class OnekoWaylandExtension extends Extension {
         try {
             GLib.file_set_contents(this._stateFile, data);
         } catch (e) {
-            console.warn(`oneko-wayland: could not save state: ${e.message}`);
+            console.warn(`oneko-wayland-legacy: could not save state: ${e.message}`);
         }
     }
 
@@ -219,7 +219,7 @@ export default class OnekoWaylandExtension extends Extension {
                 return;
             for (const raw of JSON.parse(new TextDecoder().decode(bytes))) {
                 if (this._cats.size >= MAX_CATS) {
-                    console.warn(`oneko-wayland: reached ${MAX_CATS} cats; ignoring the rest of the saved state`);
+                    console.warn(`oneko-wayland-legacy: reached ${MAX_CATS} cats; ignoring the rest of the saved state`);
                     break;
                 }
                 try {
@@ -227,12 +227,12 @@ export default class OnekoWaylandExtension extends Extension {
                 } catch (e) {
                     // e.g. a --sheet file deleted since last login: skip this
                     // cat, keep the others.
-                    console.warn(`oneko-wayland: not restoring "${raw?.name}": ${e.message}`);
+                    console.warn(`oneko-wayland-legacy: not restoring "${raw?.name}": ${e.message}`);
                 }
             }
         } catch (e) {
             if (!e.matches?.(GLib.FileError, GLib.FileError.NOENT))
-                console.warn(`oneko-wayland: could not restore cats: ${e.message}`);
+                console.warn(`oneko-wayland-legacy: could not restore cats: ${e.message}`);
         }
     }
 }

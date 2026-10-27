@@ -4,7 +4,7 @@
 # prevent user extensions from loading.
 set -euo pipefail
 
-UUID=oneko-wayland@disco-chef
+UUID=oneko-wayland-legacy@disco-chef
 HERE=$(cd "$(dirname "$0")" && pwd)
 
 say()  { printf '  %s\n' "$*"; }
@@ -47,11 +47,11 @@ gnome-extensions install --force "$TMP/$UUID.shell-extension.zip"
 
 # --- install the CLI ---------------------------------------------------------
 mkdir -p "$HOME/.local/bin"
-install -m 755 "$HERE/bin/oneko-wayland" "$HOME/.local/bin/oneko-wayland"
-say "installed CLI to ~/.local/bin/oneko-wayland"
+install -m 755 "$HERE/bin/oneko-wayland-legacy" "$HOME/.local/bin/oneko-wayland-legacy"
+say "installed CLI to ~/.local/bin/oneko-wayland-legacy"
 case ":$PATH:" in
     *":$HOME/.local/bin:"*) ;;
-    *) warn '~/.local/bin is not on your PATH; add it to use `oneko-wayland`.' ;;
+    *) warn '~/.local/bin is not on your PATH; add it to use `oneko-wayland-legacy`.' ;;
 esac
 
 # --- settings that silently block user extensions ---------------------------
@@ -76,7 +76,7 @@ else
 from gi.repository import Gio
 s = Gio.Settings.new("org.gnome.shell")
 enabled = s.get_strv("enabled-extensions")
-uuid = "oneko-wayland@disco-chef"
+uuid = "oneko-wayland-legacy@disco-chef"
 if uuid not in enabled:
     s.set_strv("enabled-extensions", enabled + [uuid])
 Gio.Settings.sync()
@@ -85,17 +85,17 @@ fi
 
 # --- done --------------------------------------------------------------------
 echo
-if gdbus call --session --dest org.oneko.Wayland \
-        --object-path /org/oneko/Wayland \
-        --method org.oneko.Wayland.ListCats >/dev/null 2>&1; then
+if gdbus call --session --dest org.oneko.WaylandLegacy \
+        --object-path /org/oneko/WaylandLegacy \
+        --method org.oneko.WaylandLegacy.ListCats >/dev/null 2>&1; then
     echo "Done. A version of the extension is already running, so you can add"
     echo "a cat right now:"
-    echo "  oneko-wayland add Pickles --body orange --outline brown"
+    echo "  oneko-wayland-legacy add Pickles --body orange --outline brown"
     echo
     echo "But if you just UPDATED oneko-wayland, log out and back in first: a"
     echo "Wayland session keeps running the old code until you do."
 else
     echo "Done. Log out and back in once (a running Wayland session cannot load"
     echo "a brand-new extension in place), then add a cat:"
-    echo "  oneko-wayland add Pickles --body orange --outline brown"
+    echo "  oneko-wayland-legacy add Pickles --body orange --outline brown"
 fi

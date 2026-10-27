@@ -1,4 +1,4 @@
-# oneko-wayland
+# oneko-wayland legacy
 
 The classic [oneko](https://en.wikipedia.org/wiki/Neko_(software)) desktop
 cats, reborn for GNOME on Wayland.
@@ -15,7 +15,7 @@ all of that: a client can't know the global pointer position, can't know where
 other windows are, and can't position itself. The only place that knowledge
 still exists is inside the compositor, so this project is a **GNOME Shell
 extension** (the cats are drawn by Mutter itself), plus a small
-**`oneko-wayland` CLI** that talks to it over D-Bus.
+**`oneko-wayland-legacy` CLI** that talks to it over D-Bus.
 
 The signature behavior is faithfully ported from oneko's `-tofocus` mode: each
 cat rides the **top edge of the focused window**, chasing your pointer left
@@ -46,8 +46,8 @@ PyGObject (`python3-gi` on Debian/Ubuntu, `python-gobject` on Arch,
 preinstalled on every GNOME distro), `make`.
 
 ```sh
-git clone https://github.com/Disco-Chef/oneko-wayland
-cd oneko-wayland
+git clone -b legacy https://github.com/Disco-Chef/oneko-wayland oneko-wayland-legacy
+cd oneko-wayland-legacy
 ./install.sh
 ```
 
@@ -56,8 +56,8 @@ extension in place; updates to an already-installed one also need a relogin).
 Check it's alive:
 
 ```sh
-gnome-extensions info oneko-wayland@disco-chef
-oneko-wayland add Pickles --body orange --outline brown
+gnome-extensions info oneko-wayland-legacy@disco-chef
+oneko-wayland-legacy add Pickles --body orange --outline brown
 ```
 
 The installer also fixes the most common silent failure. GNOME has a master
@@ -70,9 +70,9 @@ error appears anywhere. The installer sets it back to `false`.
 ## Usage
 
 ```sh
-oneko-wayland add NAME [options]     # spawn (or replace) a cat
-oneko-wayland remove NAME | --all    # send cats home
-oneko-wayland list
+oneko-wayland-legacy add NAME [options]     # spawn (or replace) a cat
+oneko-wayland-legacy remove NAME | --all    # send cats home
+oneko-wayland-legacy list
 ```
 
 | Option | Meaning | Default |
@@ -111,9 +111,9 @@ what makes `--body`/`--outline` recoloring possible: one sprite set, any
 color cat:
 
 ```sh
-oneko-wayland add Pickles --body orange --outline brown   # orange cat
-oneko-wayland add Rex --animal dog --body '#c0f0ff'       # pastel blue dog
-oneko-wayland add Stripes --animal tora --scale 2         # big tiger
+oneko-wayland-legacy add Pickles --body orange --outline brown   # orange cat
+oneko-wayland-legacy add Rex --animal dog --body '#c0f0ff'       # pastel blue dog
+oneko-wayland-legacy add Stripes --animal tora --scale 2         # big tiger
 ```
 
 ### Custom sprite sheets (`--sheet`)
@@ -131,8 +131,8 @@ ports: a single PNG with an 8×4 grid of frames. Find them at:
   that many of these skins descend from.
 
 ```sh
-oneko-wayland add Zim --sheet ~/Downloads/alien.png --mode mouse
-oneko-wayland add Chapeau --sheet ~/Downloads/fancy.png   # the top-hat cat
+oneko-wayland-legacy add Zim --sheet ~/Downloads/alien.png --mode mouse
+oneko-wayland-legacy add Chapeau --sheet ~/Downloads/fancy.png   # the top-hat cat
 ```
 
 Things worth knowing about sheets:
@@ -168,15 +168,15 @@ The slightly different `--time` values (µs, like classic oneko) are
 deliberate: they desync the three cats so they don't animate in lockstep.
 
 ```zsh
-alias catswindow='oneko-wayland add MrPickles --body orange --outline brown --speed 14 --offset-x=35  --time 100000 --mode focus &&
-                  oneko-wayland add Adonis    --body grey   --outline black --speed 16 --offset-x=-35 --time 100500 --mode focus &&
-                  oneko-wayland add Sultana   --body white  --outline red   --speed 15 --offset-x=0   --time 100250 --mode focus'
+alias catswindow='oneko-wayland-legacy add MrPickles --body orange --outline brown --speed 14 --offset-x=35  --time 100000 --mode focus &&
+                  oneko-wayland-legacy add Adonis    --body grey   --outline black --speed 16 --offset-x=-35 --time 100500 --mode focus &&
+                  oneko-wayland-legacy add Sultana   --body white  --outline red   --speed 15 --offset-x=0   --time 100250 --mode focus'
 
-alias catsmouse='oneko-wayland add MrPickles --body orange --outline brown --speed 14 --offset-x=35  --time 100000 --mode mouse &&
-                 oneko-wayland add Adonis    --body grey   --outline black --speed 16 --offset-x=-35 --time 100500 --mode mouse &&
-                 oneko-wayland add Sultana   --body white  --outline red   --speed 15 --offset-x=0   --time 100250 --mode mouse'
+alias catsmouse='oneko-wayland-legacy add MrPickles --body orange --outline brown --speed 14 --offset-x=35  --time 100000 --mode mouse &&
+                 oneko-wayland-legacy add Adonis    --body grey   --outline black --speed 16 --offset-x=-35 --time 100500 --mode mouse &&
+                 oneko-wayland-legacy add Sultana   --body white  --outline red   --speed 15 --offset-x=0   --time 100250 --mode mouse'
 
-alias catsgohome='oneko-wayland remove --all'
+alias catsgohome='oneko-wayland-legacy remove --all'
 ```
 
 Running `catsmouse` after `catswindow` just switches the same three cats'
@@ -204,16 +204,16 @@ cost proportionally; lowering it (e.g. `--fps 4`) halves it.
 
 ## Troubleshooting
 
-- **`oneko-wayland: the extension is not running`**: you haven't logged out
+- **`oneko-wayland-legacy: the extension is not running`**: you haven't logged out
   since installing, or the extension isn't enabled. Check
-  `gnome-extensions info oneko-wayland@disco-chef` (state should be ACTIVE
+  `gnome-extensions info oneko-wayland-legacy@disco-chef` (state should be ACTIVE
   after a relogin).
 - **Extension never appears at all**: make sure
   `gsettings get org.gnome.shell disable-user-extensions` is `false` and
   `gsettings get org.gnome.shell allow-extension-installation` is `true`
   (the installer checks both).
 - **Different GNOME version**: add your major version to `shell-version` in
-  `extension/oneko-wayland@disco-chef/metadata.json` and re-run
+  `extension/oneko-wayland-legacy@disco-chef/metadata.json` and re-run
   `./install.sh`. The APIs used are stable across recent GNOME releases, but
   only 50 is tested.
 
@@ -232,7 +232,7 @@ you only need it if you touch `assets/` or the converter.
 The one way to skip the logout while iterating is `make devkit`, which opens a
 GNOME Shell development-kit instance (a shell in a window on a private D-Bus);
 run `./install.sh` first so it picks up your latest code. `make pack` builds a
-distributable `dist/oneko-wayland@disco-chef.shell-extension.zip` that others
+distributable `dist/oneko-wayland-legacy@disco-chef.shell-extension.zip` that others
 can install with `gnome-extensions install`. Sprites are the original oneko XBM bitmaps
 (vendored in `assets/`, public domain, by Masayuki Koba / Tatsuya Kato);
 `tools/xbm2json.py` converts them to the `sprites.json` the extension renders
@@ -241,12 +241,12 @@ with Cairo, recolored per cat.
 ## Layout
 
 ```
-extension/oneko-wayland@disco-chef/   the GNOME Shell extension
+extension/oneko-wayland-legacy@disco-chef/   the GNOME Shell extension
   extension.js                        lifecycle, D-Bus service, persistence
   cat.js                              the cat: state machine + rendering
   sprites.js                          XBM run-length painter
   sprites.json                        generated from assets/ (make sprites)
-bin/oneko-wayland                     CLI (D-Bus client)
+bin/oneko-wayland-legacy                     CLI (D-Bus client)
 assets/                               original oneko bitmaps + masks
 tools/xbm2json.py                     sprite converter
 ```

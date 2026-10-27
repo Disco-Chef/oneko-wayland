@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CLI for the Oneko Wayland GNOME Shell extension.
 
-Talks to the extension over D-Bus (org.oneko.Wayland). Cats persist across
+Talks to the extension over D-Bus (org.oneko.WaylandLegacy). Cats persist across
 logins until you remove them.
 """
 
@@ -13,9 +13,9 @@ import sys
 import gi
 from gi.repository import Gio, GLib
 
-BUS_NAME = "org.oneko.Wayland"
-OBJECT_PATH = "/org/oneko/Wayland"
-UUID = "oneko-wayland@disco-chef"
+BUS_NAME = "org.oneko.WaylandLegacy"
+OBJECT_PATH = "/org/oneko/WaylandLegacy"
+UUID = "oneko-wayland-legacy@disco-chef"
 
 # CSS3 / X11 color names, so `--bg orange --fg brown` keeps working.
 COLORS = {
@@ -121,7 +121,7 @@ def call(method, *args, signature=""):
     except GLib.Error as e:
         if "ServiceUnknown" in e.message or "NameHasNoOwner" in e.message:
             sys.exit(diagnose())
-        sys.exit(f"oneko-wayland: D-Bus error: {e.message}")
+        sys.exit(f"oneko-wayland-legacy: D-Bus error: {e.message}")
 
 
 def diagnose():
@@ -138,7 +138,7 @@ def diagnose():
     enabled = UUID in settings.get_strv("enabled-extensions")
     extensions_off = settings.get_boolean("disable-user-extensions")
 
-    why = "oneko-wayland: the cats' GNOME Shell extension is not running.\n"
+    why = "oneko-wayland-legacy: the cats' GNOME Shell extension is not running.\n"
     if not installed:
         return why + (
             "It is not installed. From a clone of the oneko-wayland repo, run:\n"
@@ -180,7 +180,7 @@ def cmd_add(args):
     (result,) = call("AddCat", json.dumps(config), signature="s")
     result = json.loads(result)
     if "error" in result:
-        sys.exit(f"oneko-wayland: {result['error']}")
+        sys.exit(f"oneko-wayland-legacy: {result['error']}")
     c = result["cat"]
     print(f"{c['name']} the {kind(c)} is on the prowl "
           f"({c['mode']} mode, fg {c['fg']}, bg {c['bg']})")
@@ -198,10 +198,10 @@ def cmd_remove(args):
         print("all cats sent home")
         return
     if not args.name:
-        sys.exit("oneko-wayland: give a cat name or --all")
+        sys.exit("oneko-wayland-legacy: give a cat name or --all")
     (removed,) = call("RemoveCat", args.name, signature="s")
     if not removed:
-        sys.exit(f"oneko-wayland: no cat named {args.name!r}")
+        sys.exit(f"oneko-wayland-legacy: no cat named {args.name!r}")
     print(f"{args.name} sent home")
 
 
@@ -220,7 +220,7 @@ def cmd_list(_args):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="oneko-wayland",
+        prog="oneko-wayland-legacy",
         description="Desktop cats for GNOME on Wayland, in the spirit of oneko.")
     sub = parser.add_subparsers(dest="command", required=True)
 
