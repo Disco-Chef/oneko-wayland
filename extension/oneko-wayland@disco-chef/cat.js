@@ -1,3 +1,4 @@
+import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import St from 'gi://St';
@@ -35,6 +36,11 @@ const POINTER_DEADZONE = 75;    // raw px; smaller nudges (anti screen-dim) are 
 const SHORT_NAP_MIN = 3;        // a voluntary cat-nap while you're active
 const SHORT_NAP_MAX = 12;
 const SHORT_NAP_CHANCE = 0.15;  // per-pause chance of one
+
+// A sleeper only has to notice being woken, so it ticks this many times
+// slower and counts each tick as this many. The sleep frame flips every 4
+// ticks anyway, so it looks the same.
+const SLEEP_STRIDE = 4;
 
 const State = {
     STOP: 'stop',
@@ -88,7 +94,6 @@ export class Cat {
         this._tickCount = 0;
         this._dir = 'down';
         this._togiDir = 'ltogi';
-        this._frame = 'mati2';
 
         // Prowl-mode state (inert in the other modes).
         this._energy = 0;
@@ -109,19 +114,22 @@ export class Cat {
         this._idleLimit = this._drawTicks(IDLE_MIN, IDLE_MAX);
         this._shortNap = false;  // idleprowl: this sleep is a self-timed cat-nap
 
-        this._actor = new St.DrawingArea({
+        // One child per frame, each painted once and then only shown or
+        // hidden, so changing frames never re-runs Cairo (see _showFrame).
+        this._actor = new Clutter.Actor({
             reactive: false,
             width: this._size,
             height: this._size,
         });
+        this._frameAreas = new Map();
         this._destroyed = false;
-        this._actor.connect('repaint', area => this._repaint(area));
         // If the actor is disposed out from under us (e.g. the shell tearing
         // down on logout/kill), stop ticking before a queued timer can touch
         // the dead C object.
         this._actor.connect('destroy', () => this.destroy());
         parent.add_child(this._actor);
         this._actor.set_position(Math.round(this._x), Math.round(this._y));
+        this._showFrame('mati2');
 
         // Name tag shown while the pointer is over the cat. The cat itself
         // stays non-reactive (it must not steal clicks from the window under
@@ -140,13 +148,45 @@ export class Cat {
         this._tickMs = Math.max(20, Math.round(config.time));
         if (this._mode === 'prowl' || this._mode === 'idleprowl')
             this._energy = this._drawTicks(WANDER_ENERGY_MIN, WANDER_ENERGY_MAX);
+        this._timer = 0;
+        this._timerStride = 0;
+        this._paused = false;
+        this._schedule();
+    }
+
+    // (Re)start the tick timer at the rate the current state needs. Called on
+    // every state change; a no-op when the rate is already right.
+    _schedule() {
+        // Only the prowl brains: a focus/mouse sleeper wakes on pointer
+        // distance, so it keeps oneko's full tick rate.
+        const prowling = this._mode === 'prowl' || this._mode === 'idleprowl';
+        const stride = prowling && this._state === State.SLEEP ? SLEEP_STRIDE : 1;
+        if (this._destroyed || this._paused ||
+            (this._timer && stride === this._timerStride))
+            return;
+        if (this._timer)
+            GLib.source_remove(this._timer);
+        this._timerStride = stride;
         this._timer = GLib.timeout_add(
-            GLib.PRIORITY_DEFAULT, this._tickMs, () => {
+            GLib.PRIORITY_DEFAULT, this._tickMs * stride, () => {
                 if (this._destroyed)
                     return GLib.SOURCE_REMOVE;
-                this._tick();
+                this._tick(stride);
                 return GLib.SOURCE_CONTINUE;
             });
+    }
+
+    pause() {
+        this._paused = true;
+        if (this._timer) {
+            GLib.source_remove(this._timer);
+            this._timer = 0;
+        }
+    }
+
+    resume() {
+        this._paused = false;
+        this._schedule();
     }
 
     destroy() {
@@ -165,10 +205,27 @@ export class Cat {
         this._label = null;
     }
 
-    _repaint(area) {
+    _showFrame(frame) {
+        this._frameAreas.get(this._frame)?.hide();
+        let area = this._frameAreas.get(frame);
+        if (!area) {
+            area = new St.DrawingArea({
+                reactive: false,
+                width: this._size,
+                height: this._size,
+            });
+            area.connect('repaint', a => this._repaint(a, frame));
+            this._actor.add_child(area);
+            this._frameAreas.set(frame, area);
+        }
+        area.show();
+        this._frame = frame;
+    }
+
+    _repaint(area, frame) {
         const cr = area.get_context();
         const s = this._size / this._spriteSize;
-        const runs = this._runs[this._frame];
+        const runs = this._runs[frame];
         if (this._colored) {
             for (const [x, y, len, r, g, b, a] of runs.runs) {
                 cr.setSourceRGBA(r / 255, g / 255, b / 255, a / 255);
@@ -189,11 +246,12 @@ export class Cat {
     // The focused window, if it's one a cat can perch on.
     _focusWindow() {
         const win = global.display.focus_window;
-        if (win && !win.minimized &&
-            win.get_window_type() !== Meta.WindowType.DESKTOP &&
-            win.get_window_type() !== Meta.WindowType.DOCK)
-            return win;
-        return null;
+        if (!win || win.minimized)
+            return null;
+        const type = win.get_window_type();
+        if (type === Meta.WindowType.DESKTOP || type === Meta.WindowType.DOCK)
+            return null;
+        return win;
     }
 
     _drawTicks(minS, maxS) {
@@ -202,12 +260,9 @@ export class Cat {
 
     // Where a prowl cat may roam: the focused window's top edge, or the
     // bottom of the screen (the floor) when there's nothing to perch on.
-    _wanderRange() {
-        const win = this._focusWindow();
-        if (win) {
-            const r = win.get_frame_rect();
+    _wanderRange(r = this._focusWindow()?.get_frame_rect()) {
+        if (r)
             return [r.x, Math.max(r.x, r.x + r.width - this._size)];
-        }
         return [0, Math.max(0, global.stage.width - this._size)];
     }
 
@@ -238,8 +293,18 @@ export class Cat {
     _unpin() {
         if (this._pinned) {
             this._pinned.win.disconnect(this._pinned.id);
+            this._pinned.win.disconnect(this._pinned.moveId);
             this._pinned = null;
         }
+    }
+
+    // A sleeper ticks slowly, so it follows a dragged perch from the window's
+    // own signal rather than waiting for its next tick.
+    _ride() {
+        const r = this._pinned.win.get_frame_rect();
+        this._x = r.x + this._pinned.dx;
+        this._y = Math.max(0, r.y - this._size + this._offsetY);
+        this._actor.set_position(Math.round(this._x), Math.round(this._y));
     }
 
     _fallAsleep(napTicks = null) {
@@ -254,6 +319,7 @@ export class Cat {
                     Math.max(0, r.width - this._size)),
                 // the perch is being demolished: wake up, no reaction roll
                 id: win.connect('unmanaging', () => this._wakeUp()),
+                moveId: win.connect('position-changed', () => this._ride()),
             };
         }
         this._setState(State.SLEEP);
@@ -404,12 +470,13 @@ export class Cat {
                 ? {x: px - size / 2, y: py - size / 2, px, py}
                 : {x: t._x, y: t._y, px, py};
         }
-        const [lo, hi] = this._wanderRange();
+        // null, not undefined, so _wanderRange doesn't look the window up again
+        const rect = this._focusWindow()?.get_frame_rect() ?? null;
+        const [lo, hi] = this._wanderRange(rect);
         if (this._wanderX === null || this._wanderX < lo || this._wanderX > hi)
             this._wanderX = lo + Math.random() * (hi - lo);
-        const win = this._focusWindow();
-        const y = win
-            ? Math.max(0, win.get_frame_rect().y - size + this._offsetY)
+        const y = rect
+            ? Math.max(0, rect.y - size + this._offsetY)
             : global.stage.height - size + this._offsetY;
         return {x: this._wanderX, y, px, py};
     }
@@ -417,6 +484,7 @@ export class Cat {
     _setState(state) {
         this._state = state;
         this._stateCount = 0;
+        this._schedule();
     }
 
     _stepTowards(dx, dy, distance) {
@@ -497,7 +565,7 @@ export class Cat {
 
     // The prowl brain: self-directed strolls, long naps, strong opinions
     // about being woken. The pointer is scenery (mostly; see poke()).
-    _tickProwl(target) {
+    _tickProwl(target, steps) {
         if (this._mode === 'idleprowl') {
             const active = this._pointerMoved(target.px, target.py);
             if (active) {
@@ -508,7 +576,7 @@ export class Cat {
                     return;  // stir this tick, rejoin the wander next tick
                 }
             } else {
-                this._idleTicks++;
+                this._idleTicks += steps;
                 // been quiet long enough: plop where we are and wind down
                 const settling = this._state === State.JARE ||
                     this._state === State.KAKI || this._state === State.AKUBI;
@@ -522,7 +590,7 @@ export class Cat {
             this._energy--;  // prowl only: internal awake budget
         }
         if (this._pokeCooldown > 0)
-            this._pokeCooldown--;
+            this._pokeCooldown = Math.max(0, this._pokeCooldown - steps);
 
         const dx = target.x - this._x;
         const dy = target.y - this._y;
@@ -556,7 +624,7 @@ export class Cat {
                     : null);
             break;
         case State.SLEEP:
-            this._napTicks--;
+            this._napTicks -= steps;
             if (this._pinned?.win.minimized) {
                 this._wakeUp();
                 break;
@@ -652,22 +720,22 @@ export class Cat {
         }
     }
 
-    _tick() {
-        this._tickCount = (this._tickCount + 1) % 9999;
-        if (this._tickCount % 2 === 0)
-            this._stateCount++;
+    _tick(steps) {
+        for (let i = 0; i < steps; i++) {
+            this._tickCount = (this._tickCount + 1) % 9999;
+            if (this._tickCount % 2 === 0)
+                this._stateCount++;
+        }
 
         const target = this._target();
         if (this._mode === 'prowl' || this._mode === 'idleprowl')
-            this._tickProwl(target);
+            this._tickProwl(target, steps);
         else
             this._tickChase(target);
 
         const frame = this._currentFrame();
-        if (frame !== this._frame) {
-            this._frame = frame;
-            this._actor.queue_repaint();
-        }
+        if (frame !== this._frame)
+            this._showFrame(frame);
 
         this._updateLabel(target.px, target.py);
     }
